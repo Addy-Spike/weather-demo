@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>高级沉浸式天气动画 Demo</title>
+    <title>高级沉浸式天气动画 Demo (瑞利散射版)</title>
     <style>
         :root {
             --card-bg: rgba(255, 255, 255, 0.15);
@@ -290,7 +290,7 @@
             z-index: 5;
         }
 
-        /* 亮色主题适配 (如下雪、雾天) */
+        /* 亮色主题适配 */
         body.theme-light {
             --card-bg: rgba(0, 0, 0, 0.1);
             --card-border: rgba(0, 0, 0, 0.1);
@@ -371,22 +371,24 @@
         const dateOptions = { weekday: 'long', month: 'long', day: 'numeric' };
         document.getElementById('current-date').innerText = new Date().toLocaleDateString('zh-CN', dateOptions);
 
-        // 天气配置数据
+        // 天气配置数据 (已更新晴天和多云为瑞利散射垂直渐变)
         const weatherData = {
             sunny: {
                 name: '晴天', temp: 28, hum: 40, wind: 8, feels: 30, theme: 'dark',
-                bg: 'linear-gradient(135deg, #2980B9, #6DD5FA, #FFFFFF)',
+                // 瑞利散射渐变：天顶深蓝 -> 中空蔚蓝 -> 地平线泛白
+                bg: 'linear-gradient(180deg, #0b4c91 0%, #3a85cc 40%, #8bc2f5 80%, #dcf0ff 100%)',
                 cssElements: ['sun'], particle: 'none'
+            },
+            cloudy: {
+                name: '多云', temp: 24, hum: 60, wind: 15, feels: 24, theme: 'dark',
+                // 多云下的瑞利散射底色：略微降低饱和度，模拟云层漫反射
+                bg: 'linear-gradient(180deg, #326496 0%, #6496c8 50%, #b8dcf0 100%)',
+                cssElements: ['sun', 'clouds'], particle: 'none'
             },
             night: {
                 name: '夜晚', temp: 18, hum: 55, wind: 5, feels: 17, theme: 'dark',
                 bg: 'linear-gradient(135deg, #0f2027, #203a43, #2c5364)',
                 cssElements: ['moon'], particle: 'stars'
-            },
-            cloudy: {
-                name: '多云', temp: 24, hum: 60, wind: 15, feels: 24, theme: 'dark',
-                bg: 'linear-gradient(135deg, #4b6cb7, #182848)',
-                cssElements: ['sun', 'clouds'], particle: 'none'
             },
             overcast: {
                 name: '阴天', temp: 20, hum: 75, wind: 10, feels: 19, theme: 'dark',
