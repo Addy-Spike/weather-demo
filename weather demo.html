@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高级沉浸式天气动画 Demo</title>
+    <style>
+        :root {
+            --card-bg: rgba(255, 255, 255, 0.15);
+            --card-border: rgba(255, 255, 255, 0.3);
+            --text-color: #ffffff;
+            --text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            user-select: none;
+        }
+
+        body {
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #000;
+            transition: color 0.5s ease;
+        }
+
+        /* 背景渐变层 */
+        .bg-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            transition: opacity 1.2s ease-in-out;
+            opacity: 0;
+        }
+
+        .bg-layer.active {
+            opacity: 1;
+        }
+
+        /* 效果画布 */
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* CSS 特效层 */
+        .css-effects {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 3;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        /* 玻璃拟态卡片 */
+        .weather-card {
+            position: relative;
+            z-index: 10;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: 30px;
+            padding: 50px 40px;
+            width: 340px;
+            text-align: center;
+            color: var(--text-color);
+            text-shadow: var(--text-shadow);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            transition: all 0.5s ease, transform 0.3s ease;
+        }
+
+        .weather-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .city {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+        }
+
+        .date {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-bottom: 25px;
+        }
+
+        .temp-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .temperature {
+            font-size: 80px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .unit {
+            font-size: 30px;
+            font-weight: 400;
+            margin-top: 10px;
+        }
+
+        .condition {
+            font-size: 22px;
+            font-weight: 500;
+            margin-bottom: 35px;
+            letter-spacing: 1px;
+        }
+
+        .details {
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            padding-top: 25px;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .detail-value {
+            font-size: 18px;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+
+        /* 底部控制栏 */
+        .controls {
+            position: relative;
+            z-index: 10;
+            margin-top: 40px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            max-width: 800px;
+            padding: 0 20px;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: var(--text-color);
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-shadow: var(--text-shadow);
+        }
+
+        button:hover, button.active {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.6);
+            transform: translateY(-2px);
+        }
+
+        /* --- CSS 特效组件 --- */
+        
+        /* 太阳 */
+        .sun {
+            position: absolute;
+            top: 15%;
+            right: 20%;
+            width: 120px;
+            height: 120px;
+            background: radial-gradient(circle, #fffdf2 0%, #ffeb3b 40%, #f39c12 100%);
+            border-radius: 50%;
+            box-shadow: 0 0 60px #ffeb3b, 0 0 120px #f39c12;
+            animation: pulse-sun 4s infinite alternate;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        @keyframes pulse-sun {
+            0% { transform: scale(1); box-shadow: 0 0 60px #ffeb3b, 0 0 100px #f39c12; }
+            100% { transform: scale(1.05); box-shadow: 0 0 80px #ffeb3b, 0 0 150px #f39c12; }
+        }
+
+        /* 月亮 */
+        .moon {
+            position: absolute;
+            top: 15%;
+            right: 20%;
+            width: 100px;
+            height: 100px;
+            background: transparent;
+            border-radius: 50%;
+            box-shadow: -20px 20px 0 0 #fdfdfd;
+            filter: drop-shadow(0 0 20px rgba(255,255,255,0.5));
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        /* 雾气 */
+        .fog-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 2s ease;
+        }
+        .fog-layer {
+            position: absolute;
+            width: 200%;
+            height: 100%;
+            background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><filter id="f"><feGaussianBlur stdDeviation="10"/></filter><circle cx="20" cy="50" r="30" fill="white" filter="url(%23f)" opacity="0.3"/><circle cx="70" cy="40" r="40" fill="white" filter="url(%23f)" opacity="0.2"/><circle cx="50" cy="80" r="35" fill="white" filter="url(%23f)" opacity="0.3"/></svg>') repeat-x;
+            background-size: 50% 100%;
+            animation: drift var(--speed) linear infinite;
+        }
+        .fog-layer:nth-child(1) { bottom: -20%; --speed: 60s; opacity: 0.6; }
+        .fog-layer:nth-child(2) { bottom: -10%; --speed: 40s; opacity: 0.4; animation-direction: reverse; }
+
+        /* 云层 */
+        .clouds-container {
+            position: absolute;
+            width: 100%;
+            height: 50%;
+            top: 0;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+        .cloud {
+            position: absolute;
+            background: #fff;
+            border-radius: 50px;
+            filter: blur(5px);
+            opacity: 0.7;
+            animation: drift-cloud linear infinite;
+        }
+        .cloud::before, .cloud::after {
+            content: '';
+            position: absolute;
+            background: #fff;
+            border-radius: 50%;
+        }
+        .cloud-1 { width: 120px; height: 40px; top: 10%; left: -150px; animation-duration: 40s; }
+        .cloud-1::before { width: 60px; height: 60px; top: -30px; left: 15px; }
+        .cloud-1::after { width: 40px; height: 40px; top: -20px; left: 65px; }
+        
+        .cloud-2 { width: 200px; height: 60px; top: 25%; left: -250px; animation-duration: 65s; opacity: 0.5; transform: scale(1.5); }
+        .cloud-2::before { width: 80px; height: 80px; top: -40px; left: 30px; }
+        .cloud-2::after { width: 70px; height: 70px; top: -30px; left: 90px; }
+
+        @keyframes drift { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        @keyframes drift-cloud { 0% { transform: translateX(0vw); } 100% { transform: translateX(110vw); } }
+
+        /* 闪电 */
+        .lightning-flash {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* 亮色主题适配 (如下雪、雾天) */
+        body.theme-light {
+            --card-bg: rgba(0, 0, 0, 0.1);
+            --card-border: rgba(0, 0, 0, 0.1);
+            --text-color: #2c3e50;
+            --text-shadow: 0 1px 3px rgba(255, 255, 255, 0.5);
+        }
+        body.theme-light button {
+            background: rgba(0, 0, 0, 0.1);
+            border-color: rgba(0, 0, 0, 0.2);
+            color: #2c3e50;
+        }
+        body.theme-light button:hover, body.theme-light button.active {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        body.theme-light .details {
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 动态渐变背景 -->
+    <div id="bg-1" class="bg-layer active"></div>
+    <div id="bg-2" class="bg-layer"></div>
+
+    <!-- 粒子特效画布 -->
+    <canvas id="effect-canvas"></canvas>
+
+    <!-- CSS 特效层 (日月云雾) -->
+    <div class="css-effects">
+        <div class="sun" id="sun"></div>
+        <div class="moon" id="moon"></div>
+        
+        <div class="clouds-container" id="clouds">
+            <div class="cloud cloud-1"></div>
+            <div class="cloud cloud-2" style="animation-delay: -20s;"></div>
+            <div class="cloud cloud-1" style="top: 15%; animation-delay: -15s; transform: scale(0.8);"></div>
+        </div>
+
+        <div class="fog-container" id="fog">
+            <div class="fog-layer"></div>
+            <div class="fog-layer"></div>
+        </div>
+
+        <div class="lightning-flash" id="flash"></div>
+    </div>
+
+    <!-- UI 主卡片 -->
+    <div class="weather-card">
+        <div class="city">成都</div>
+        <div class="date" id="current-date">星期一, 10月 23日</div>
+        <div class="temp-container">
+            <div class="temperature" id="temp">25</div>
+            <div class="unit">°C</div>
+        </div>
+        <div class="condition" id="cond-text">晴空万里</div>
+        <div class="details">
+            <div class="detail-item">
+                <span>湿度</span>
+                <span class="detail-value" id="hum">45%</span>
+            </div>
+            <div class="detail-item">
+                <span>风速</span>
+                <span class="detail-value" id="wind">12 km/h</span>
+            </div>
+            <div class="detail-item">
+                <span>体感</span>
+                <span class="detail-value" id="feels">27°C</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 场景切换按钮 -->
+    <div class="controls" id="btn-container"></div>
+
+    <script>
+        // 设置日期
+        const dateOptions = { weekday: 'long', month: 'long', day: 'numeric' };
+        document.getElementById('current-date').innerText = new Date().toLocaleDateString('zh-CN', dateOptions);
+
+        // 天气配置数据
+        const weatherData = {
+            sunny: {
+                name: '晴天', temp: 28, hum: 40, wind: 8, feels: 30, theme: 'dark',
+                bg: 'linear-gradient(135deg, #2980B9, #6DD5FA, #FFFFFF)',
+                cssElements: ['sun'], particle: 'none'
+            },
+            night: {
+                name: '夜晚', temp: 18, hum: 55, wind: 5, feels: 17, theme: 'dark',
+                bg: 'linear-gradient(135deg, #0f2027, #203a43, #2c5364)',
+                cssElements: ['moon'], particle: 'stars'
+            },
+            cloudy: {
+                name: '多云', temp: 24, hum: 60, wind: 15, feels: 24, theme: 'dark',
+                bg: 'linear-gradient(135deg, #4b6cb7, #182848)',
+                cssElements: ['sun', 'clouds'], particle: 'none'
+            },
+            overcast: {
+                name: '阴天', temp: 20, hum: 75, wind: 10, feels: 19, theme: 'dark',
+                bg: 'linear-gradient(135deg, #5D6D7E, #34495E)',
+                cssElements: ['clouds'], particle: 'none'
+            },
+            rain: {
+                name: '雨天', temp: 16, hum: 90, wind: 22, feels: 14, theme: 'dark',
+                bg: 'linear-gradient(135deg, #3a404d, #182848)',
+                cssElements: ['clouds'], particle: 'rain'
+            },
+            thunder: {
+                name: '雷暴', temp: 15, hum: 88, wind: 35, feels: 12, theme: 'dark',
+                bg: 'linear-gradient(135deg, #141E30, #243B55)',
+                cssElements: ['clouds'], particle: 'heavy-rain', flash: true
+            },
+            snow: {
+                name: '下雪', temp: -2, hum: 70, wind: 12, feels: -6, theme: 'light',
+                bg: 'linear-gradient(135deg, #E0EAFC, #CFDEF3)',
+                cssElements: [], particle: 'snow'
+            },
+            fog: {
+                name: '雾天', temp: 12, hum: 95, wind: 3, feels: 11, theme: 'light',
+                bg: 'linear-gradient(135deg, #bdc3c7, #2c3e50)',
+                cssElements: ['fog'], particle: 'none'
+            }
+        };
+
+        // DOM 元素
+        const bg1 = document.getElementById('bg-1');
+        const bg2 = document.getElementById('bg-2');
+        let activeBg = 1;
+        const canvas = document.getElementById('effect-canvas');
+        const ctx = canvas.getContext('2d');
+        const btnContainer = document.getElementById('btn-container');
+
+        // CSS 特效元素引用
+        const cssEls = {
+            sun: document.getElementById('sun'),
+            moon: document.getElementById('moon'),
+            clouds: document.getElementById('clouds'),
+            fog: document.getElementById('fog')
+        };
+        const flashEl = document.getElementById('flash');
+
+        // 调整 Canvas 尺寸
+        let width, height;
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // 粒子系统配置
+        let particles = [];
+        let currentParticleType = 'none';
+        let animationId;
+        let thunderInterval;
+
+        class Particle {
+            constructor(type) {
+                this.type = type;
+                this.reset(true);
+            }
+
+            reset(initial = false) {
+                this.x = Math.random() * width;
+                this.y = initial ? Math.random() * height : -20;
+                
+                if (this.type === 'stars') {
+                    this.radius = Math.random() * 1.5;
+                    this.alpha = Math.random();
+                    this.velocity = (Math.random() * 0.02) + 0.005;
+                } else if (this.type === 'rain' || this.type === 'heavy-rain') {
+                    this.length = Math.random() * 20 + 10;
+                    this.speedY = Math.random() * 10 + 15;
+                    this.speedX = (Math.random() - 0.5) * 2 + 1; // 风向右吹
+                    this.thickness = Math.random() * 1.5 + 0.5;
+                    this.alpha = Math.random() * 0.4 + 0.2;
+                    if(this.type === 'heavy-rain') {
+                        this.speedY *= 1.5;
+                        this.speedX += 2;
+                        this.length *= 1.5;
+                    }
+                } else if (this.type === 'snow') {
+                    this.radius = Math.random() * 3 + 1;
+                    this.speedY = Math.random() * 2 + 1;
+                    this.speedX = (Math.random() - 0.5) * 2;
+                    this.alpha = Math.random() * 0.5 + 0.4;
+                    this.angle = Math.random() * Math.PI * 2;
+                }
+            }
+
+            update() {
+                if (this.type === 'stars') {
+                    this.alpha += this.velocity;
+                    if (this.alpha >= 1 || this.alpha <= 0.1) this.velocity *= -1;
+                } else {
+                    this.y += this.speedY;
+                    this.x += this.speedX;
+                    if (this.type === 'snow') {
+                        this.angle += 0.02;
+                        this.x += Math.sin(this.angle) * 0.5;
+                    }
+                    if (this.y > height || this.x > width || this.x < 0) {
+                        this.reset();
+                    }
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                if (this.type === 'stars') {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (this.type === 'rain' || this.type === 'heavy-rain') {
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${this.alpha})`;
+                    ctx.lineWidth = this.thickness;
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(this.x + this.speedX * 1.5, this.y + this.length);
+                    ctx.stroke();
+                } else if (this.type === 'snow') {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        // 动画循环
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            for (let p of particles) {
+                p.update();
+                p.draw();
+            }
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // 初始化/切换粒子
+        function setParticles(type) {
+            currentParticleType = type;
+            particles = [];
+            let count = 0;
+            
+            if (type === 'stars') count = 150;
+            if (type === 'rain') count = 100;
+            if (type === 'heavy-rain') count = 250;
+            if (type === 'snow') count = 150;
+
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle(type));
+            }
+        }
+
+        // 触发雷暴闪电
+        function startThunder() {
+            stopThunder();
+            thunderInterval = setInterval(() => {
+                if(Math.random() > 0.7) {
+                    flashEl.style.opacity = '0.8';
+                    setTimeout(() => flashEl.style.opacity = '0', 50);
+                    setTimeout(() => {
+                        if(Math.random() > 0.5) {
+                            flashEl.style.opacity = '0.5';
+                            setTimeout(() => flashEl.style.opacity = '0', 50);
+                        }
+                    }, 100);
+                }
+            }, 3000);
+        }
+
+        function stopThunder() {
+            if(thunderInterval) clearInterval(thunderInterval);
+            flashEl.style.opacity = '0';
+        }
+
+        // 切换天气核心逻辑
+        function changeWeather(key) {
+            const data = weatherData[key];
+            
+            // 1. 更新按钮状态
+            document.querySelectorAll('.controls button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-${key}`).classList.add('active');
+
+            // 2. 更新背景 (双层交替实现平滑过渡)
+            const nextBg = activeBg === 1 ? bg2 : bg1;
+            const currentBg = activeBg === 1 ? bg1 : bg2;
+            nextBg.style.background = data.bg;
+            nextBg.classList.add('active');
+            currentBg.classList.remove('active');
+            activeBg = activeBg === 1 ? 2 : 1;
+
+            // 3. 更新卡片文本和主题
+            document.body.className = data.theme === 'light' ? 'theme-light' : '';
+            
+            // 数字跳动动画
+            animateValue('temp', parseFloat(document.getElementById('temp').innerText), data.temp, 1000);
+            animateValue('hum', parseInt(document.getElementById('hum').innerText), data.hum, 1000, '%');
+            animateValue('wind', parseInt(document.getElementById('wind').innerText), data.wind, 1000, ' km/h');
+            animateValue('feels', parseInt(document.getElementById('feels').innerText), data.feels, 1000, '°C');
+            document.getElementById('cond-text').innerText = data.name;
+
+            // 4. 管理 CSS 特效层的显隐
+            Object.keys(cssEls).forEach(elKey => {
+                if(data.cssElements.includes(elKey)) {
+                    cssEls[elKey].style.opacity = (elKey === 'clouds' && key === 'overcast') ? '0.4' : '1';
+                } else {
+                    cssEls[elKey].style.opacity = '0';
+                }
+            });
+
+            // 5. 管理雷暴闪电
+            if (data.flash) startThunder();
+            else stopThunder();
+
+            // 6. 管理 Canvas 粒子
+            setParticles(data.particle);
+        }
+
+        // 数字动画辅助函数
+        function animateValue(id, start, end, duration, suffix = '') {
+            const obj = document.getElementById(id);
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                // 使用 easeOutCubic 缓动
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                const current = Math.floor(start + easeOut * (end - start));
+                obj.innerText = current + suffix;
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                }
+            };
+            window.requestAnimationFrame(step);
+        }
+
+        // 初始化
+        function init() {
+            // 生成按钮
+            Object.keys(weatherData).forEach(key => {
+                const btn = document.createElement('button');
+                btn.id = `btn-${key}`;
+                btn.innerText = weatherData[key].name;
+                btn.onclick = () => changeWeather(key);
+                btnContainer.appendChild(btn);
+            });
+
+            // 启动默认天气和动画
+            changeWeather('sunny');
+            animate();
+        }
+
+        // 页面加载完成后启动
+        window.onload = init;
+    </script>
+</body>
+</html>
